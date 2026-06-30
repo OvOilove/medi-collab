@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: medi-record
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+        namespace: medicollab
+      config:
+        server-addr: 127.0.0.1:8848
+        namespace: medicollab
+        file-extension: yaml

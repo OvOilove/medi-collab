@@ -1,0 +1,64 @@
+spring:
+  application:
+    name: medi-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+        namespace: medicollab
+      config:
+        server-addr: 127.0.0.1:8848
+        namespace: medicollab
+        file-extension: yaml
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        # 用户服务
+        - id: medi-user
+          uri: lb://medi-user
+          predicates:
+            - Path=/api/user/**
+          filters:
+            - StripPrefix=0
+        # 预约服务
+        - id: medi-appointment
+          uri: lb://medi-appointment
+          predicates:
+            - Path=/api/appointment/**
+          filters:
+            - StripPrefix=0
+        # 病历服务
+        - id: medi-record
+          uri: lb://medi-record
+          predicates:
+            - Path=/api/record/**
+          filters:
+            - StripPrefix=0
+        # 转诊服务
+        - id: medi-referral
+          uri: lb://medi-referral
+          predicates:
+            - Path=/api/referral/**
+          filters:
+            - StripPrefix=0
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+
+server:
+  port: 8080
+
+knife4j:
+  gateway:
+    enabled: true
+    strategy: discover
+    discover:
+      enabled: true
+      version: openapi3
