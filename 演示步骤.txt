@@ -1,0 +1,145 @@
+MediCollab 演示操作指南
+=========================
+
+终端命令都在 CMD 或 PowerShell 里执行
+
+Token 会在第一步拿到，后续步骤需要用到时直接复制粘贴
+
+
+第一步：登录认证（Item 5）
+-----------------------
+在哪：终端
+执行：
+curl -s -X POST http://localhost:8080/api/user/login -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"123456\"}" | python fmt.py
+
+会返回 JSON，里面有 token 字段，复制备用。
+口播：BCrypt加密存储密码，JWT签发Token，同时缓存到Redis。
+
+
+第二步：API网关 - 无Token （Item 8）
+-----------------------
+在哪：终端
+执行：
+curl -s -w "\nHTTP: %{http_code}" http://localhost:8080/api/user/list
+
+返回 HTTP: 401，说明JWT过滤器拦截了。
+口播：Spring Cloud Gateway全局过滤器，未认证请求返回401。
+
+
+第三步：API网关 - 带Token （Item 8）
+-----------------------
+在哪：终端
+执行（把 YOUR_TOKEN 换成第一步复制的那串）：
+curl -s http://localhost:8080/api/user/list -H "Authorization: Bearer YOUR_TOKEN" | python fmt.py
+
+返回用户列表 JSON。
+口播：认证通过后Gateway注入X-User-Id等请求头，路由转发到medi-user服务。
+
+
+第四步：接口文档展示（Item 1）
+-----------------------
+在哪：IDE/文件管理器
+打开以下4个文件，快速滑动展示 @Tag 和 @Operation 注解：
+- medi-user/.../controller/UserController.java
+- medi-appointment/.../controller/AppointmentController.java
+- medi-record/.../controller/RecordController.java
+- medi-referral/.../controller/ReferralController.java
+口播：52个API，SpringDoc+Knife4j自动生成接口文档。
+
+
+第五步：Nacos注册中心（Item 6）
+-----------------------
+在哪：浏览器 + 终端
+浏览器打开 http://localhost:8848/nacos ，账号 nacos 密码 nacos
+左侧：服务管理 -> 服务列表，顶部选 medicollab 命名空间
+终端执行：
+curl -s "http://127.0.0.1:8848/nacos/v1/ns/service/list?namespaceId=medicollab&pageNo=1" | python fmt.py
+口播：Nacos注册中心，5个微服务已注册，健康检查+心跳正常。
+
+
+第六步：远程调用 - 创建科室 + 排班 + 预约（Item 7）
+-----------------------
+在哪：终端
+
+6.1 创建科室：
+curl -s -X POST localhost:8082/api/appointment/dept -H "Content-Type: application/json" -d "{\"name\":\"Cardiology\",\"hospitalId\":1,\"hospitalName\":\"No1-Hospital\"}" | python fmt.py
+
+6.2 创建排班：
+curl -s -X POST localhost:8082/api/appointment/schedule -H "Content-Type: application/json" -d "{\"doctorId\":2,\"doctorName\":\"Dr.Zhang\",\"departmentId\":1,\"departmentName\":\"Cardiology\",\"hospitalId\":1,\"hospitalName\":\"No1-Hospital\",\"workDate\":\"2026-07-08\",\"startTime\":\"08:00:00\",\"endTime\":\"12:00:00\",\"maxPatients\":30}" | python fmt.py
+
+6.3 创建预约（这里appointment会通过Feign调用user服务校验患者）：
+curl -s -X POST localhost:8082/api/appointment -H "Content-Type: application/json" -d "{\"patientId\":5,\"patientName\":\"Zhao\",\"doctorId\":2,\"doctorName\":\"Dr.Zhang\",\"departmentId\":1,\"departmentName\":\"Cardiology\",\"hospitalId\":1,\"hospitalName\":\"No1-Hospital\",\"scheduleId\":1,\"appointmentDate\":\"2026-07-08\",\"timeSlot\":\"09:00:00\"}" | python fmt.py
+
+口播：appointment服务通过OpenFeign声明式调用user服务校验患者。LoadBalancer从Nacos获取medi-user地址，实现服务发现+负载均衡。
+
+
+第七步：Redis热度排行（Item 2）
+-----------------------
+在哪：终端
+
+先创建2个额外预约（增加热度）：
+curl -s -X POST localhost:8082/api/appointment -H "Content-Type: application/json" -d "{\"patientId\":5,\"patientName\":\"Zhao\",\"doctorId\":2,\"doctorName\":\"Dr.Zhang\",\"departmentId\":1,\"departmentName\":\"Cardiology\",\"hospitalId\":1,\"hospitalName\":\"No1-Hospital\",\"scheduleId\":1,\"appointmentDate\":\"2026-07-08\",\"timeSlot\":\"09:30:00\"}" >nul
+curl -s -X POST localhost:8082/api/appointment -H "Content-Type: application/json" -d "{\"patientId\":5,\"patientName\":\"Zhao\",\"doctorId\":2,\"doctorName\":\"Dr.Zhang\",\"departmentId\":1,\"departmentName\":\"Cardiology\",\"hospitalId\":1,\"hospitalName\":\"No1-Hospital\",\"scheduleId\":1,\"appointmentDate\":\"2026-07-08\",\"timeSlot\":\"10:00:00\"}" >nul
+
+查看热度排行：
+curl -s "localhost:8082/api/appointment/dept/hot?topN=5" | python fmt.py
+
+口播：Redis ZSet实现科室预约热度排行（ZINCRBY），预约时使用SETNX分布式锁防止号源并发抢占，用户信息缓存在Redis减少DB查询。
+
+
+第八步：Nacos配置中心实时刷新（Item 9）
+-----------------------
+在哪：终端
+
+修改配置（阈值100改为3）：
+curl -s -X POST "http://127.0.0.1:8848/nacos/v1/cs/configs" -d "dataId=medi-appointment.yaml&group=DEFAULT_GROUP&tenant=medicollab&content=appointment.max-per-day: 3" >nul
+
+尝试创建第4个预约（会被新阈值拦截）：
+curl -s -X POST localhost:8082/api/appointment -H "Content-Type: application/json" -d "{\"patientId\":5,\"patientName\":\"Zhao\",\"doctorId\":2,\"doctorName\":\"Dr.Zhang\",\"departmentId\":1,\"departmentName\":\"Cardiology\",\"hospitalId\":1,\"hospitalName\":\"No1-Hospital\",\"scheduleId\":1,\"appointmentDate\":\"2026-07-08\",\"timeSlot\":\"10:30:00\"}" | python fmt.py
+
+返回错误：每日预约已满（阈值:3）。服务没重启。
+口播：@RefreshScope注解，Nacos修改配置后推送到服务，实时生效无需重启。
+
+
+第九步：病历 + 转诊（补充演示）
+-----------------------
+在哪：终端
+
+创建病历（含SHA-256审计哈希）：
+curl -s -X POST localhost:8083/api/record -H "Content-Type: application/json" -d "{\"patientId\":5,\"patientName\":\"Zhao\",\"doctorId\":2,\"doctorName\":\"Dr.Zhang\",\"departmentName\":\"Cardiology\",\"hospitalName\":\"No1-Hospital\",\"chiefComplaint\":\"chest pain\",\"diagnosis\":\"CHD\",\"treatmentPlan\":\"admit\"}" | python fmt.py
+
+提交转诊申请（RabbitMQ异步通知）：
+curl -s -X POST localhost:8084/api/referral -H "Content-Type: application/json" -d "{\"patientId\":5,\"patientName\":\"Zhao\",\"fromDoctorId\":4,\"fromDoctorName\":\"Dr.Wang\",\"fromDeptName\":\"GP\",\"fromHospitalName\":\"Community\",\"toDeptName\":\"Cardiology\",\"toHospitalName\":\"No1-Hospital\",\"referralReason\":\"need higher level care\"}" | python fmt.py
+
+口播：病历含SHA-256审计哈希防篡改；转诊通过RabbitMQ异步通知目标医院。
+
+
+第十步：Git提交记录（Item 4）
+-----------------------
+在哪：终端
+执行：
+git -C D:\T\medi-collab log --oneline
+
+口播：已推送到GitHub远程仓库 https://github.com/OvOilove/medi-collab
+
+
+第十一步：单元测试（Item 3）
+-----------------------
+在哪：终端
+执行：
+D:\Reasonix\task\a\maven\bin\mvn.cmd -f D:\T\medi-collab\pom.xml test -pl medi-user,medi-appointment,medi-record,medi-referral "-Dtest=*MockTest"
+
+等待约30秒，最后输出 "Tests run: 24, Failures: 0, BUILD SUCCESS"
+口播：24个测试全部通过，JUnit5+Mockito框架。
+
+
+第十二步：开发难点（Item 10）
+-----------------------
+在哪：IDE
+打开以下文件展示：
+- medi-common/.../R.java （泛型类型推断 okMsg方法）
+- medi-user/.../config/RedisConfig.java （LocalDateTime序列化 JavaTimeModule）
+- medi-gateway/.../filter/JwtAuthFilter.java （Gateway JWT过滤器）
+- medi-appointment/.../service/impl/AppointmentServiceImpl.java （Feign+分布式锁+RefreshScope）
+
+口播：Lombok与JDK21不兼容、H2与MySQL语法差异、LocalDateTime序列化需要显式注册JavaTimeModule、Nacos在测试环境干扰启动、构造器注入丢失等。
