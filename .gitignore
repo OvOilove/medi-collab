@@ -22,7 +22,6 @@ Thumbs.db
 *.tmp
 *.bak
 
-# Python scripts (tools)
-strip_lombok.py
-fix_services.py
-fix_controllers.py
+# Installers (keep outside project)
+*_installer.exe
+*.zip

@@ -1,0 +1,50 @@
+CREATE TABLE IF NOT EXISTS department (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description VARCHAR(500),
+    hospital_id BIGINT,
+    hospital_name VARCHAR(100),
+    location VARCHAR(100),
+    max_daily_appointments INT DEFAULT 100,
+    deleted INT DEFAULT 0,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS doctor_schedule (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    doctor_id BIGINT NOT NULL,
+    doctor_name VARCHAR(50),
+    department_id BIGINT,
+    department_name VARCHAR(100),
+    hospital_id BIGINT,
+    hospital_name VARCHAR(100),
+    work_date DATE NOT NULL,
+    start_time TIME,
+    end_time TIME,
+    max_patients INT DEFAULT 50,
+    booked_count INT DEFAULT 0,
+    status INT DEFAULT 1,
+    deleted INT DEFAULT 0,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS appointment (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    patient_id BIGINT NOT NULL,
+    patient_name VARCHAR(50),
+    doctor_id BIGINT,
+    doctor_name VARCHAR(50),
+    department_id BIGINT,
+    department_name VARCHAR(100),
+    hospital_id BIGINT,
+    hospital_name VARCHAR(100),
+    schedule_id BIGINT,
+    appointment_date DATE,
+    time_slot TIME,
+    queue_number INT,
+    status VARCHAR(20) DEFAULT 'BOOKED',
+    remark VARCHAR(500),
+    deleted INT DEFAULT 0,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

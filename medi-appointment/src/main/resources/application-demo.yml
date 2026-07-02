@@ -1,0 +1,18 @@
+# Demo profile — H2替代MySQL，Nacos正常连接
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:medicollab_appointment;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+server:
+  port: 8082
+
+appointment:
+  max-per-day: 100
+  lock-timeout: 30

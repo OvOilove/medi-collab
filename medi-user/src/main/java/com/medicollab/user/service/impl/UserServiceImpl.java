@@ -73,8 +73,6 @@ public class UserServiceImpl implements UserService {
         String token = JwtUtils.generateToken(user.getId(), user.getUsername(), user.getRole());
         // 缓存 token
         redisTemplate.opsForValue().set("medi:token:" + user.getId(), token, 7, TimeUnit.DAYS);
-        // 缓存用户信息
-        cacheUser(user);
 
         LoginResponse response = new LoginResponse();
         response.setToken(token);
@@ -87,16 +85,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User getById(Long id) {
-        // 先从缓存获取
-        String key = USER_CACHE_KEY + id;
-        User cached = (User) redisTemplate.opsForValue().get(key);
-        if (cached != null) {
-            return cached;
-        }
+        // Demo模式: 直接查数据库，跳过Redis缓存
         User user = userMapper.selectById(id);
-        if (user != null) {
-            cacheUser(user);
-        }
         return user;
     }
 
@@ -143,12 +133,7 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("用户不存在");
         }
         userMapper.updateById(user);
-        // 清除缓存
-        redisTemplate.delete(USER_CACHE_KEY + user.getId());
-        // 重新缓存
-        User updated = userMapper.selectById(user.getId());
-        cacheUser(updated);
-        return updated;
+        return userMapper.selectById(user.getId());
     }
 
     @Override
@@ -159,8 +144,6 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("用户不存在");
         }
         userMapper.deleteById(id);
-        redisTemplate.delete(USER_CACHE_KEY + id);
-        redisTemplate.delete("medi:token:" + id);
     }
 
     @Override
@@ -188,10 +171,6 @@ public class UserServiceImpl implements UserService {
     public List<UserDTO> getUserDTOs(List<Long> ids) {
         List<User> users = userMapper.selectBatchIds(ids);
         return users.stream().map(this::toDTO).collect(Collectors.toList());
-    }
-
-    private void cacheUser(User user) {
-        redisTemplate.opsForValue().set(USER_CACHE_KEY + user.getId(), user, Duration.ofHours(24));
     }
 
     private UserDTO toDTO(User user) {

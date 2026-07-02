@@ -1,12 +1,6 @@
-spring:
-  application:
-    name: medi-user
-  cloud:
-    nacos:
-      discovery:
-        server-addr: 127.0.0.1:8848
-        namespace: medicollab
-      config:
-        server-addr: 127.0.0.1:8848
-        namespace: medicollab
-        file-extension: yaml
+spring.application.name: medi-user
+spring.cloud.nacos.discovery.server-addr: 127.0.0.1:8848
+spring.cloud.nacos.discovery.namespace: medicollab
+spring.cloud.nacos.config.server-addr: 127.0.0.1:8848
+spring.cloud.nacos.config.namespace: medicollab
+spring.cloud.nacos.config.file-extension: yaml
